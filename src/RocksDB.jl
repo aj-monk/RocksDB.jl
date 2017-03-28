@@ -22,6 +22,8 @@ export db_get
 export db_delete
 export db_range
 export range_close
+export db_delete_range
+export db_compact_range
 
 function open_db(file_path, create_if_missing)
     options = @threadcall( (:rocksdb_options_create, librocksdb), Ptr{Void}, ())
@@ -44,12 +46,13 @@ function close_db(db)
     @threadcall( (:rocksdb_close, librocksdb), Void, (Ptr{Void},), db)
 end
 
-function db_put(db, key, value, val_len)
+function db_put(db, key, value)
     options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
+    k = byte_array(key); v = byte_array(value)
     err = Ptr{UInt8}[0]
     @threadcall( (:rocksdb_put, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
-          db, options,key, length(key), value, val_len, err)
+          db, options,k, length(k), v, length(v), err)
     if err[1] != C_NULL
         error(unsafe_string(err[1]))
     end
@@ -61,23 +64,25 @@ function db_get(db, key)
     options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
     err = Ptr{UInt8}[0]
     val_len = Csize_t[0]
+    k = byte_array(key)
     value = @threadcall( (:rocksdb_get, librocksdb), Ptr{UInt8},
           (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{Csize_t},  Ptr{Ptr{UInt8}} ),
-          db, options, key, length(key), val_len, err)
+          db, options, k, length(k), val_len, err)
     if err[1] != C_NULL
         error(unsafe_string(err[1]))
     else
         s = unsafe_wrap(Array, value, (val_len[1],), true)
-        s
+        return s == nothing ? s : array_to_type(s)
     end
 end
 
 function db_delete(db, key)
     options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
     err = Ptr{UInt8}[0]
+    k = byte_array(key)
     @threadcall( (:rocksdb_delete, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{Void}, UInt, Ptr{Ptr{UInt8}} ),
-          db, options, key, length(key), err)
+          db, options, k, length(k), err)
     if err[1] != C_NULL
         error(unsafe_string(err[1]))
     end
@@ -91,10 +96,11 @@ end
 
 
 
-function batch_put(batch, key, value, val_len)
+function batch_put(batch, key, value)
+    k = byte_array(key); v = byte_array(value)
     @threadcall( (:rocksdb_writebatch_put, librocksdb), Void,
           (Ptr{UInt8}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt),
-          batch, key, length(key), value, val_len)
+          batch, k, length(k), v, length(v))
 end
 
 function write_batch(db, batch)
@@ -150,7 +156,9 @@ function iter_next(it::Ptr{Void})
     it)
 end
 
-type Range
+abstract AbstractRange
+
+type Range <: AbstractRange
   iter::Ptr{Void}
   options::Ptr{Void}
   key_start::String
@@ -158,13 +166,14 @@ type Range
   destroyed::Bool
 end
 
-function db_range(db, key_start, key_end="\uffff")
+function db_range(db, key_start, key_end)
   options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
+  ks = byte_array(key_start); ke = byte_array(key_end)
   iter = create_iter(db, options)
-  Range(iter, options, key_start, key_end, false)
+  Range(iter, options, ks, ke, false)
 end
 
-function range_close(range::Range)
+function range_close(range::AbstractRange)
   if !range.destroyed
     range.destroyed = true
     @threadcall( (:rocksdb_iter_destroy, librocksdb), Void,
@@ -176,27 +185,120 @@ function range_close(range::Range)
   end
 end
 
-function Base.start(range::Range)
+function Base.start(range::AbstractRange)
   iter_seek(range.iter, range.key_start)
 end
 
-function Base.done(range::Range, state=nothing)
-  if range.destroyed
-    return true
-  end
-  isdone = iter_valid(range.iter) ? iter_key(range.iter) > range.key_end : true
-  if isdone
-    range_close(range)
-  end
-  isdone
+function Base.done(range::AbstractRange, state=nothing)
+    if range.destroyed
+        return true
+    end
+    isdone = iter_valid(range.iter) ? iter_key(range.iter) > range.key_end : true
+    if isdone
+        range_close(range)
+    end
+    isdone
 end
 
 function Base.next(range::Range, state=nothing)
-  k = iter_key(range.iter)
-  v = iter_value(range.iter)
+  k = (r = iter_key(range.iter)) == nothing ? nothing : array_to_type(r)
+  v = (r = iter_value(range.iter)) == nothing ? nothing : array_to_type(r)
   iter_next(range.iter)
   ((k, v), nothing)
 end
 
+type KeyRange <: AbstractRange
+  iter::Ptr{Void}
+  options::Ptr{Void}
+  key_start::String
+  key_end::String
+  destroyed::Bool
+end
+
+"""
+    db_key_range(db, key_start, key_end)
+A range that returns only keys, no values
+"""
+function db_key_range(db, key_start, key_end)
+    options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
+    ks = byte_array(key_start); ke = byte_array(key_end)
+    iter = create_iter(db, options)
+    KeyRange(iter, options, ks, ke, false)
+end
+
+function Base.next(range::KeyRange, state=nothing)
+    k = (r = iter_key(range.iter)) == nothing ? nothing : array_to_type(r)
+    iter_next(range.iter)
+    (k, nothing)
+end
+
+"""
+    db_compact_range(db, start_key, end_key)
+Compact (free storage) in the given range start_key:end_key
+Caution: This call will delete ranges in snapshots.
+"""
+function db_compact_range(db, skey, ekey)
+    err = Ptr{UInt8}[0]
+    # Delete files in range to free up storage
+    @threadcall( (:rocksdb_delete_file_in_range, librocksdb), Void,
+                 (Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
+                 db, skey, length(skey), ekey, length(ekey), err)
+    if err[1] != C_NULL
+        return error(unsafe_string(err[1]))
+    end
+    # Compact range to free up storage
+    @threadcall( (:rocksdb_compact_range, librocksdb), Void,
+                 (Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt),
+                 db, skey, length(skey), ekey, length(ekey))
+end
+
+"""
+    db_delete_range(db, start_key, limit_key)
+Delete keys in the range start_key:limit_key including start key and limit_key.
+"""
+function db_delete_range(db, start_key, limit_key)
+    err = Ptr{UInt8}[0]
+    for k in RocksDB.db_key_range(db, start_key, limit_key)
+        db_delete(db, k)
+    end
+    #sk = byte_array(start_key); lk = byte_array(limit_key)
+    #compact_range(db, sk, lk)
+end
+
+#----------- Helper funcitons ---------------#
+
+"""
+    byte_array(x)
+
+Serialize Julia type *x* such that it can be written to
+a db or file
+"""
+function byte_array(x)
+    iob = IOBuffer()
+    serialize(iob, x)
+    iob.data
+end
+
+"""
+    array_to_type{T}(arr, ::Type{T})
+
+Deserialize from Array{UInt8} back to Julia type.
+"""
+function array_to_type{T}(arr, ::Type{T})
+    iob = IOBuffer(arr)
+    seek(iob, 0)
+    t = deserialize(iob)
+    if ! isa(t, T)
+        throw(ThimbleSerializeException("Could not deserialize to type"))
+    end
+    t
+end
+
+function array_to_type(arr)
+    iob = IOBuffer(arr)
+    seek(iob, 0)
+    t = deserialize(iob)
+    t
+end
 
 end # module
