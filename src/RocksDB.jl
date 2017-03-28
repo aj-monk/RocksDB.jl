@@ -11,19 +11,12 @@ else
     error("RocksDB not properly installed. Please run Pkg.build(\"RocksDB\")")
 end
 
-# package code goes here
-export open_db
-export close_db
-export create_write_batch
-export batch_put
-export write_batch
-export db_put
-export db_get
-export db_delete
-export db_range
-export range_close
-export db_delete_range
-export db_compact_range
+export open_db, close_db
+export create_write_batch, batch_put, write_batch
+export db_put, db_get, db_delete
+export db_range, range_close, db_delete_range, db_compact_range
+export db_backup_open, db_backup_create, db_backup_close
+export db_backup_purge, db_backup_restore
 
 function open_db(file_path, create_if_missing)
     options = @threadcall( (:rocksdb_options_create, librocksdb), Ptr{Void}, ())
@@ -34,6 +27,8 @@ function open_db(file_path, create_if_missing)
     err = Ptr{UInt8}[0]
     db = @threadcall( (:rocksdb_open, librocksdb), Ptr{Void},
                (Ptr{Void}, Ptr{UInt8}, Ptr{Ptr{UInt8}}) , options, file_path, err)
+
+    @threadcall( (:rocksdb_options_destroy, librocksdb), Void, (Ptr{Void},), options)
 
     if db == C_NULL
         error(unsafe_string(err[1]))
@@ -257,12 +252,78 @@ end
 Delete keys in the range start_key:limit_key including start key and limit_key.
 """
 function db_delete_range(db, start_key, limit_key)
-    err = Ptr{UInt8}[0]
     for k in RocksDB.db_key_range(db, start_key, limit_key)
         db_delete(db, k)
     end
     #sk = byte_array(start_key); lk = byte_array(limit_key)
     #compact_range(db, sk, lk)
+end
+
+"""
+    db_backup_open(backup_dir)
+Returns an instance of backup engine which backs up in *backup_dir*.
+"""
+function db_backup_open(backup_dir)
+    options = @threadcall( (:rocksdb_options_create, librocksdb), Ptr{Void}, ())
+    err = Ptr{UInt8}[0]
+    be = @threadcall( (:rocksdb_backup_engine_open, librocksdb), Ptr{Void},
+                 (Ptr{Void}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
+                 options, backup_dir, err)
+    if be == C_NULL
+        error(unsafe_string(err[1]))
+    end
+    return be
+end
+
+"""
+    db_backup_create(be, db)
+Given the backup engine *be*, backs up the database *db* in the directory
+opened by *be*.
+"""
+function db_backup_create(be, db)
+    err = Ptr{UInt8}[0]
+    @threadcall( (:rocksdb_backup_engine_create_new_backup, librocksdb), Void,
+                 (Ptr{Void}, Ptr{Void}, Ptr{Ptr{UInt8}}),
+                 be, db, err)
+    if err[1] != C_NULL
+        error(unsafe_string(err[1]))
+    end
+end
+
+function db_backup_close(be)
+    @threadcall( (:rocksdb_backup_engine_close, librocksdb), Void, (Ptr{Void},), be)
+end
+
+"""
+    db_backup_purge(be, num_to_keep)
+Keep *num_to_keep* back ups and purge the older ones.
+"""
+function db_backup_purge(be, num_to_keep)
+    err = Ptr{UInt8}[0]
+    @threadcall( (:rocksdb_backup_engine_purge_old_backups, librocksdb), Void,
+                 (Ptr{Void}, UInt, Ptr{Ptr{UInt8}}),
+                 be, num_to_keep, err)
+    if err[1] != C_NULL
+        error(unsafe_string(err[1]))
+    end
+end
+
+"""
+    db_backup_restore(be, db_dir)
+Restore the latest backup in *be* to *db_dir*. The restored db can be opened
+using *db_open*.
+"""
+function db_backup_restore(be, db_dir)
+    options = @threadcall( (:rocksdb_restore_options_create, librocksdb), Ptr{Void}, ())
+    err = Ptr{UInt8}[0]
+    @threadcall( (:rocksdb_backup_engine_restore_db_from_latest_backup, librocksdb), Void,
+                 (Ptr{Void}, Ptr{UInt8}, Ptr{UInt8}, Ptr{Void}, Ptr{Ptr{UInt8}}),
+                 be, db_dir, db_dir, options, err)
+    if err[1] != C_NULL
+        error(unsafe_string(err[1]))
+    end
+    @threadcall( (:rocksdb_restore_options_destroy, librocksdb), Void,
+                 (Ptr{Void},), options)
 end
 
 #----------- Helper funcitons ---------------#
