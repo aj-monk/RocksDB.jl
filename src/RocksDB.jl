@@ -18,6 +18,14 @@ export db_range, range_close, db_delete_range, db_compact_range
 export db_backup_open, db_backup_create, db_backup_close
 export db_backup_purge, db_backup_restore
 
+type RocksDBException <: Exception
+    msg::String
+end
+
+function check_err(err)
+    err[1] != C_NULL && throw(RocksDBException(error(unsafe_string(err[1]))))
+end
+
 function open_db(file_path, create_if_missing)
     options = @threadcall( (:rocksdb_options_create, librocksdb), Ptr{Void}, ())
     if create_if_missing
@@ -30,9 +38,8 @@ function open_db(file_path, create_if_missing)
 
     @threadcall( (:rocksdb_options_destroy, librocksdb), Void, (Ptr{Void},), options)
 
-    if db == C_NULL
-        error(unsafe_string(err[1]))
-    end
+    db == C_NULL && check_err(err)
+
     return db
 end
 
@@ -48,9 +55,7 @@ function db_put(db, key, value)
     @threadcall( (:rocksdb_put, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
           db, options,k, length(k), v, length(v), err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
 end
 
 # return an UInt8 array obj
@@ -63,12 +68,10 @@ function db_get(db, key)
     value = @threadcall( (:rocksdb_get, librocksdb), Ptr{UInt8},
           (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{Csize_t},  Ptr{Ptr{UInt8}} ),
           db, options, k, length(k), val_len, err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    else
-        s = unsafe_wrap(Array, value, (val_len[1],), true)
-        return s == nothing ? s : array_to_type(s)
-    end
+    check_err(err)
+
+    s = unsafe_wrap(Array, value, (val_len[1],), true)
+    return s == nothing ? s : array_to_type(s)
 end
 
 function db_delete(db, key)
@@ -78,9 +81,7 @@ function db_delete(db, key)
     @threadcall( (:rocksdb_delete, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{Void}, UInt, Ptr{Ptr{UInt8}} ),
           db, options, k, length(k), err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
 end
 
 
@@ -104,9 +105,7 @@ function write_batch(db, batch)
     @threadcall( (:rocksdb_write, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{Void},  Ptr{Ptr{UInt8}} ),
           db, options, batch, err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
 end
 
 
@@ -238,9 +237,7 @@ function db_compact_range(db, skey, ekey)
     @threadcall( (:rocksdb_delete_file_in_range, librocksdb), Void,
                  (Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
                  db, skey, length(skey), ekey, length(ekey), err)
-    if err[1] != C_NULL
-        return error(unsafe_string(err[1]))
-    end
+    check_err(err)
     # Compact range to free up storage
     @threadcall( (:rocksdb_compact_range, librocksdb), Void,
                  (Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt),
@@ -269,9 +266,7 @@ function db_backup_open(backup_dir)
     be = @threadcall( (:rocksdb_backup_engine_open, librocksdb), Ptr{Void},
                  (Ptr{Void}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
                  options, backup_dir, err)
-    if be == C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
     return be
 end
 
@@ -285,9 +280,7 @@ function db_backup_create(be, db)
     @threadcall( (:rocksdb_backup_engine_create_new_backup, librocksdb), Void,
                  (Ptr{Void}, Ptr{Void}, Ptr{Ptr{UInt8}}),
                  be, db, err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
 end
 
 function db_backup_close(be)
@@ -303,9 +296,7 @@ function db_backup_purge(be, num_to_keep)
     @threadcall( (:rocksdb_backup_engine_purge_old_backups, librocksdb), Void,
                  (Ptr{Void}, UInt, Ptr{Ptr{UInt8}}),
                  be, num_to_keep, err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
 end
 
 """
@@ -319,9 +310,7 @@ function db_backup_restore(be, db_dir)
     @threadcall( (:rocksdb_backup_engine_restore_db_from_latest_backup, librocksdb), Void,
                  (Ptr{Void}, Ptr{UInt8}, Ptr{UInt8}, Ptr{Void}, Ptr{Ptr{UInt8}}),
                  be, db_dir, db_dir, options, err)
-    if err[1] != C_NULL
-        error(unsafe_string(err[1]))
-    end
+    check_err(err)
     @threadcall( (:rocksdb_restore_options_destroy, librocksdb), Void,
                  (Ptr{Void},), options)
 end
