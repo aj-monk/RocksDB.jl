@@ -71,7 +71,7 @@ function db_get(db, key)
     check_err(err)
 
     s = unsafe_wrap(Array, value, (val_len[1],), true)
-    return s == nothing ? s : array_to_type(s)
+    return val_len[1] == 0 ? nothing : array_to_type(s)
 end
 
 function db_delete(db, key)
@@ -153,34 +153,34 @@ end
 abstract AbstractRange
 
 type Range <: AbstractRange
-  iter::Ptr{Void}
-  options::Ptr{Void}
-  key_start::String
-  key_end::String
-  destroyed::Bool
+    iter::Ptr{Void}
+    options::Ptr{Void}
+    key_start::String
+    key_end::String
+    destroyed::Bool
 end
 
 function db_range(db, key_start, key_end)
-  options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
-  ks = byte_array(key_start); ke = byte_array(key_end)
-  iter = create_iter(db, options)
-  Range(iter, options, ks, ke, false)
+    options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
+    ks = byte_array(key_start); ke = byte_array(key_end)
+    iter = create_iter(db, options)
+    Range(iter, options, ks, ke, false)
 end
 
 function range_close(range::AbstractRange)
-  if !range.destroyed
-    range.destroyed = true
-    @threadcall( (:rocksdb_iter_destroy, librocksdb), Void,
-      (Ptr{Void},),
-      range.iter)
-    @threadcall( (:rocksdb_readoptions_destroy, librocksdb), Void,
-      (Ptr{Void},),
-      range.options)
-  end
+    if !range.destroyed
+        range.destroyed = true
+        @threadcall( (:rocksdb_iter_destroy, librocksdb), Void,
+                     (Ptr{Void},),
+                     range.iter)
+        @threadcall( (:rocksdb_readoptions_destroy, librocksdb), Void,
+                     (Ptr{Void},),
+                     range.options)
+    end
 end
 
 function Base.start(range::AbstractRange)
-  iter_seek(range.iter, range.key_start)
+    iter_seek(range.iter, range.key_start)
 end
 
 function Base.done(range::AbstractRange, state=nothing)
@@ -195,18 +195,20 @@ function Base.done(range::AbstractRange, state=nothing)
 end
 
 function Base.next(range::Range, state=nothing)
-  k = (r = iter_key(range.iter)) == nothing ? nothing : array_to_type(r)
-  v = (r = iter_value(range.iter)) == nothing ? nothing : array_to_type(r)
-  iter_next(range.iter)
-  ((k, v), nothing)
+    r = iter_key(range.iter)
+    k = length(r) == 0 ? nothing : array_to_type(r)
+    r = iter_value(range.iter)
+    v = length(r) == 0 ? nothing : array_to_type(r)
+    iter_next(range.iter)
+    ((k, v), nothing)
 end
 
 type KeyRange <: AbstractRange
-  iter::Ptr{Void}
-  options::Ptr{Void}
-  key_start::String
-  key_end::String
-  destroyed::Bool
+    iter::Ptr{Void}
+    options::Ptr{Void}
+    key_start::String
+    key_end::String
+    destroyed::Bool
 end
 
 """
@@ -221,7 +223,8 @@ function db_key_range(db, key_start, key_end)
 end
 
 function Base.next(range::KeyRange, state=nothing)
-    k = (r = iter_key(range.iter)) == nothing ? nothing : array_to_type(r)
+    r = iter_key(range.iter)
+    k = length(r) == 0 ? nothing : array_to_type(r)
     iter_next(range.iter)
     (k, nothing)
 end
