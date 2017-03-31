@@ -59,7 +59,7 @@ end
 
 function db_put_sync(db, key, value)
     options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
-    @threadcall( (:rocksdb_writeoptions_set_sync, librcoskdb), Void,
+    @threadcall( (:rocksdb_writeoptions_set_sync, librocksdb), Void,
                  (Ptr{Void}, UInt8), options, 1)
     k = byte_array(key); v = byte_array(value)
     err = Ptr{UInt8}[0]
