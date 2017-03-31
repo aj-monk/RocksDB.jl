@@ -43,7 +43,6 @@ function open_db(file_path, create_if_missing)
     return db
 end
 
-
 function close_db(db)
     @threadcall( (:rocksdb_close, librocksdb), Void, (Ptr{Void},), db)
 end
@@ -58,7 +57,18 @@ function db_put(db, key, value)
     check_err(err)
 end
 
-# return an UInt8 array obj
+function db_put_sync(db, key, value)
+    options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
+    @threadcall( (:rocksdb_writeoptions_set_sync, librcoskdb), Void,
+                 (Ptr{Void}, UInt8), options, 1)
+    k = byte_array(key); v = byte_array(value)
+    err = Ptr{UInt8}[0]
+    @threadcall( (:rocksdb_put, librocksdb), Void,
+                 (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
+                 db, options,k, length(k), v, length(v), err)
+    check_err(err)
+end
+
 function db_get(db, key)
     # rocksdb_get will allocate the buffer for return value
     options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
@@ -84,13 +94,10 @@ function db_delete(db, key)
     check_err(err)
 end
 
-
 function create_write_batch()
     batch = @threadcall( (:rocksdb_writebatch_create, librocksdb), Ptr{Void},())
     return batch
 end
-
-
 
 function batch_put(batch, key, value)
     k = byte_array(key); v = byte_array(value)
@@ -107,8 +114,6 @@ function write_batch(db, batch)
           db, options, batch, err)
     check_err(err)
 end
-
-
 
 function create_iter(db::Ptr{Void}, options::Ptr{Void})
   @threadcall( (:rocksdb_create_iterator, librocksdb), Ptr{Void},
