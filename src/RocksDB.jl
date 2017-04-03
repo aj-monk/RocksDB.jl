@@ -15,6 +15,7 @@ export open_db, close_db
 export create_write_batch, batch_put, write_batch
 export db_put, db_get, db_delete
 export db_range, range_close, db_delete_range, db_compact_range
+export db_snap_key_range, db_create_snapshot, db_release_snapshot
 export db_backup_open, db_backup_create, db_backup_close
 export db_backup_purge, db_backup_restore
 
@@ -24,6 +25,7 @@ end
 
 function check_err(err)
     err[1] != C_NULL && throw(RocksDBException(error(unsafe_string(err[1]))))
+    nothing
 end
 
 function open_db(file_path, create_if_missing)
@@ -165,6 +167,14 @@ type Range <: AbstractRange
     destroyed::Bool
 end
 
+type KeyRange <: AbstractRange
+    iter::Ptr{Void}
+    options::Ptr{Void}
+    key_start::String
+    key_end::String
+    destroyed::Bool
+end
+
 function db_range(db, key_start, key_end)
     options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
     ks = byte_array(key_start); ke = byte_array(key_end)
@@ -208,14 +218,6 @@ function Base.next(range::Range, state=nothing)
     ((k, v), nothing)
 end
 
-type KeyRange <: AbstractRange
-    iter::Ptr{Void}
-    options::Ptr{Void}
-    key_start::String
-    key_end::String
-    destroyed::Bool
-end
-
 """
     db_key_range(db, key_start, key_end)
 A range that returns only keys, no values
@@ -232,6 +234,19 @@ function Base.next(range::KeyRange, state=nothing)
     k = length(r) == 0 ? nothing : array_to_type(r)
     iter_next(range.iter)
     (k, nothing)
+end
+
+"""
+    db_snap_key_range(db, snap, key_start, key_end)
+A range that returns only keys, no values
+"""
+function db_snap_key_range(db, snap, key_start, key_end)
+    options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
+    @threadcall( (:rocksdb_readoptions_set_snapshot, librocksdb), Void,
+                 (Ptr{Void}, Ptr{Void}), options, snap)
+    ks = byte_array(key_start); ke = byte_array(key_end)
+    iter = create_iter(db, options)
+    Range(iter, options, ks, ke, false)
 end
 
 """
@@ -321,6 +336,24 @@ function db_backup_restore(be, db_dir)
     check_err(err)
     @threadcall( (:rocksdb_restore_options_destroy, librocksdb), Void,
                  (Ptr{Void},), options)
+end
+
+"""
+    db_create_snapshot(db)
+For the given *db* return a snapshot object *snap*.
+"""
+function db_create_snapshot(db)
+    @threadcall( (:rocksdb_create_snapshot, librocksdb), Ptr{Void},
+                 (Ptr{Void},), db)
+end
+
+"""
+    db_release_snapshot(db, snap)
+Release storage for the given snapshot *snap* associated with *db*.
+"""
+function db_release_snapshot(db, snap)
+    @threadcall( (:rocksdb_create_snapshot, librocksdb), Void,
+                 (Ptr{Void}, Ptr{Void}), db, snap)
 end
 
 #----------- Helper funcitons ---------------#
