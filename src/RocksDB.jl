@@ -18,6 +18,7 @@ export db_range, range_close, db_delete_range, db_compact_range
 export db_snap_key_range, db_create_snapshot, db_release_snapshot
 export db_backup_open, db_backup_create, db_backup_close
 export db_backup_purge, db_backup_restore
+export db_create_checkpoint
 
 type RocksDBException <: Exception
     msg::String
@@ -340,7 +341,10 @@ end
 
 """
     db_create_snapshot(db)
-For the given *db* return a snapshot object *snap*.
+For the given *db* return a snapshot object *snap* which can be iterated on with
+*db_snap_key_range*. Snapshots are lightweight in RocksDB due to its LSM origins.
+Snapshots are transient because they cannot be recovered after restarting the
+process.
 """
 function db_create_snapshot(db)
     @threadcall( (:rocksdb_create_snapshot, librocksdb), Ptr{Void},
@@ -354,6 +358,26 @@ Release storage for the given snapshot *snap* associated with *db*.
 function db_release_snapshot(db, snap)
     @threadcall( (:rocksdb_create_snapshot, librocksdb), Void,
                  (Ptr{Void}, Ptr{Void}), db, snap)
+end
+
+"""
+    db_create_checkpoint(db, path)
+For the given *db* create a checkpoint in *path*. *path* must be an absolute
+path to a directory where the checkpoint will be created. The last component of
+*path* should not exist when making this call. Checkpoints are persistent.
+They can be opened for reads and writes, as a regular db would, by passing
+the *path*.
+
+Checkpoints are more lightweight than backups. While backups copy the contents
+of the database checkpoints create links to the original files. Checkpoints are
+deleted by deleting the directory.
+"""
+function db_create_checkpoint(db, path)
+    err = Ptr{UInt8}[0]
+    @threadcall( (:rocksdb_create_checkpoint, librocksdb), Void,
+                 (Ptr{Void}, Ptr{UInt8}, Ptr{Ptr{UInt8}}),
+                 db, path, err)
+    check_err(err)
 end
 
 #----------- Helper funcitons ---------------#

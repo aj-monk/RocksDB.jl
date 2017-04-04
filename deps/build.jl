@@ -2,14 +2,14 @@ using BinDeps
 
 @BinDeps.setup
 
-url = "https://github.com/facebook/rocksdb/archive/rocksdb-5.2.1.tar.gz"
+url = "https://github.com/ajaymendez/rocksdb/archive/c_checkpoint.zip"
 
 librocksdb = library_dependency("librocksdb")
 
-provides(Sources, URI(url), librocksdb, unpacked_dir="rocksdb-rocksdb-5.2.1")
+provides(Sources, URI(url), librocksdb, unpacked_dir="rocksdb-c_checkpoint")
 
 builddir = BinDeps.builddir(librocksdb)
-srcdir = joinpath(BinDeps.depsdir(librocksdb),"src", "rocksdb-rocksdb-5.2.1")
+srcdir = joinpath(BinDeps.depsdir(librocksdb),"src", "rocksdb-c_checkpoint")
 libdir = BinDeps.libdir(librocksdb)
 libfile = joinpath(libdir,librocksdb.name*".so")
 
