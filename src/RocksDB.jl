@@ -50,9 +50,10 @@ function close_db(db)
     @threadcall( (:rocksdb_close, librocksdb), Void, (Ptr{Void},), db)
 end
 
-function db_put(db, key, value)
+function db_put(db, key, value; raw=false)
     options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
-    k = byte_array(key); v = byte_array(value)
+    k = byte_array(key)
+    v = raw ? value : byte_array(value)
     err = Ptr{UInt8}[0]
     @threadcall( (:rocksdb_put, librocksdb), Void,
           (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
@@ -60,11 +61,12 @@ function db_put(db, key, value)
     check_err(err)
 end
 
-function db_put_sync(db, key, value)
+function db_put_sync(db, key, value; raw=false)
     options = @threadcall( (:rocksdb_writeoptions_create, librocksdb), Ptr{Void}, ())
     @threadcall( (:rocksdb_writeoptions_set_sync, librocksdb), Void,
                  (Ptr{Void}, UInt8), options, 1)
-    k = byte_array(key); v = byte_array(value)
+    k = byte_array(key)
+    v = raw ? value : byte_array(value)
     err = Ptr{UInt8}[0]
     @threadcall( (:rocksdb_put, librocksdb), Void,
                  (Ptr{Void}, Ptr{Void}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt, Ptr{Ptr{UInt8}} ),
@@ -72,7 +74,7 @@ function db_put_sync(db, key, value)
     check_err(err)
 end
 
-function db_get(db, key)
+function db_get(db, key; raw=false)
     # rocksdb_get will allocate the buffer for return value
     options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
     err = Ptr{UInt8}[0]
@@ -84,7 +86,7 @@ function db_get(db, key)
     check_err(err)
 
     s = unsafe_wrap(Array, value, (val_len[1],), true)
-    return val_len[1] == 0 ? nothing : array_to_type(s)
+    return val_len[1] == 0 ? nothing : (raw ? s : array_to_type(s))
 end
 
 function db_delete(db, key)
@@ -102,8 +104,9 @@ function create_write_batch()
     return batch
 end
 
-function batch_put(batch, key, value)
-    k = byte_array(key); v = byte_array(value)
+function batch_put(batch, key, value; raw=false)
+    k = byte_array(key)
+    v = raw ? value : byte_array(value)
     @threadcall( (:rocksdb_writebatch_put, librocksdb), Void,
           (Ptr{UInt8}, Ptr{UInt8}, UInt, Ptr{UInt8}, UInt),
           batch, k, length(k), v, length(v))
@@ -161,11 +164,12 @@ end
 abstract AbstractRange
 
 type Range <: AbstractRange
-    iter::Ptr{Void}
-    options::Ptr{Void}
-    key_start::String
-    key_end::String
-    destroyed::Bool
+    iter::Ptr{Void}    # RocksDB iterator
+    options::Ptr{Void} # RocksDB options
+    key_start::String  # Starting key
+    key_end::String    # Starting value
+    raw::Bool          # Read the value without de-serializing to julia type
+    destroyed::Bool    # RocksDB iterator and options are destroyed
 end
 
 type KeyRange <: AbstractRange
@@ -176,11 +180,11 @@ type KeyRange <: AbstractRange
     destroyed::Bool
 end
 
-function db_range(db, key_start, key_end)
+function db_range(db, key_start, key_end; raw=false)
     options = @threadcall( (:rocksdb_readoptions_create, librocksdb), Ptr{Void}, ())
     ks = byte_array(key_start); ke = byte_array(key_end)
     iter = create_iter(db, options)
-    Range(iter, options, ks, ke, false)
+    Range(iter, options, ks, ke, raw, false)
 end
 
 function range_close(range::AbstractRange)
@@ -214,7 +218,7 @@ function Base.next(range::Range, state=nothing)
     r = iter_key(range.iter)
     k = length(r) == 0 ? nothing : array_to_type(r)
     r = iter_value(range.iter)
-    v = length(r) == 0 ? nothing : array_to_type(r)
+    v = length(r) == 0 ? nothing : (range.raw ? r : array_to_type(r))
     iter_next(range.iter)
     ((k, v), nothing)
 end
