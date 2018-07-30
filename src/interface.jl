@@ -135,7 +135,7 @@ function iter_next(it::Ptr{Void})
     it)
 end
 
-abstract AbstractRange
+abstract type AbstractRange end
 
 type Range <: AbstractRange
     iter::Ptr{Void}    # RocksDB iterator
