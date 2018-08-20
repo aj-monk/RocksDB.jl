@@ -1,3 +1,5 @@
+using Serialization
+
 """
     byte_array(x)
 
@@ -17,7 +19,7 @@ end
 
 Deserialize from Array{UInt8} back to Julia type.
 """
-function array_to_type{T}(arr, ::Type{T}; endian_conv=false)
+function array_to_type(arr, ::Type{T}; endian_conv=false) where T
     iob = IOBuffer(arr)
     seek(iob, 0)
     t = deserialize(iob)
@@ -36,13 +38,13 @@ function array_to_type(arr; endian_conv=false)
     t
 end
 
-function big_endian(T::ANY)
+function big_endian(T)
     isa(T, Number) && return hton(T)
     isa(T, Tuple)  && return map(big_endian, T)
     T
 end
 
-function native_endian(T::ANY)
+function native_endian(T)
     isa(T, Number) && return ntoh(T)
     isa(T, Tuple)  && return map(native_endian, T)
     T

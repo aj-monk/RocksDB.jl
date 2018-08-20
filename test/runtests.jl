@@ -1,5 +1,5 @@
 using RocksDB
-using Base.Test
+using Test
 
 # write your own tests here
 db = RocksDB.open_db("/tmp/test.db", true)

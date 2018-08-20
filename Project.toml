@@ -1,0 +1,11 @@
+name = "RocksDB"
+uuid = "1341945c-a14d-11e8-24c3-dbaabfaf94ca"
+authors = ["Ajay Mendez <ajay.mendez@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+BinDeps = "9e28174c-4ba2-5203-b857-d8d62c4213ee"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

@@ -5,11 +5,22 @@ module RocksDB
 # contributed to LevelDB.jl
 # https://github.com/jerryzhenleicai/LevelDB.jl
 
-depsfile = Pkg.dir("RocksDB","deps","deps.jl")
+using Pkg
+
+#=
+depsfile = joinpath(pathof(RocksDB), "deps", "deps.jl")
 if isfile(depsfile)
     include(depsfile)
 else
     error("RocksDB not properly installed. Please run Pkg.build(\"RocksDB\")")
+end
+=#
+
+const depsfile = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
+if isfile(depsfile)
+    include(depsfile)
+else
+    error("RocksDB not properly installed. Please run Pkg.build(\"RocksDB\") then restart Julia.")
 end
 
 export open_db, close_db
@@ -21,7 +32,7 @@ export db_backup_open, db_backup_create, db_backup_close
 export db_backup_purge, db_backup_restore
 export db_create_checkpoint
 
-type RocksDBException <: Exception
+struct RocksDBException <: Exception
     msg::String
 end
 

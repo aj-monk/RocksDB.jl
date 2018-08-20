@@ -1,4 +1,5 @@
 using BinDeps
+using Pkg
 
 @BinDeps.setup
 
