@@ -25,6 +25,63 @@ they could stall the Julia process. As a work around RocksDB.jl uses
 the threadcall mechanism that schedules the call into librocksdb
 on a separate thread.
 
+## Installing
+RocksDB.jl works on Julia v0.7 and v1.0
+
+```bash
+$ mkdir myProject; cd myProject; julia
+```
+
+librocksdb takes about 20 minutes to build.
+
+```julia
+pkg> activate .
+
+(myProject) pkg> add https://github.com/aj-monk/RocksDB.jl
+   Cloning default registries into /home/ajaym/.julia/registries
+   Cloning registry General from "https://github.com/JuliaRegistries/General.git"
+  Updating registry at `~/.julia/registries/General`
+  Updating git-repo `https://github.com/JuliaRegistries/General.git`
+   Cloning git-repo `https://github.com/aj-monk/RocksDB.jl`
+  Updating git-repo `https://github.com/aj-monk/RocksDB.jl`
+ Resolving package versions...
+ Installed URIParser ─ v0.4.0
+ Installed BinDeps ─── v0.8.10
+ Installed Compat ──── v1.0.1
+  Updating `Project.toml`
+  [1341945c] + RocksDB v0.1.0 #master (https://github.com/aj-monk/RocksDB.jl)
+  Updating `Manifest.toml`
+  [9e28174c] + BinDeps v0.8.10
+  [34da2185] + Compat v1.0.1
+  [1341945c] + RocksDB v0.1.0 #master (https://github.com/aj-monk/RocksDB.jl)
+  [30578b45] + URIParser v0.4.0
+  [2a0f44e3] + Base64 
+  [ade2ca70] + Dates 
+  [8bb1440f] + DelimitedFiles 
+  [8ba89e20] + Distributed 
+  [b77e0a4c] + InteractiveUtils 
+  [76f85450] + LibGit2 
+  [8f399da3] + Libdl 
+  [37e2e46d] + LinearAlgebra 
+  [56ddb016] + Logging 
+  [d6f4376e] + Markdown 
+  [a63ad114] + Mmap 
+  [44cfe95a] + Pkg 
+  [de0858da] + Printf 
+  [3fa0cd96] + REPL 
+  [9a3f8284] + Random 
+  [ea8e919c] + SHA 
+  [9e88b42a] + Serialization 
+  [1a1011a3] + SharedArrays 
+  [6462fe0b] + Sockets 
+  [2f01184e] + SparseArrays 
+  [10745b16] + Statistics 
+  [8dfed614] + Test 
+  [cf7118a7] + UUIDs 
+  [4ec0a83e] + Unicode 
+  Building RocksDB → `~/.julia/packages/RocksDB/qn86f/deps/build.log`
+```
+
 ## Basic Usage
 ```julia
 julia> using RocksDB
