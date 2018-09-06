@@ -206,7 +206,7 @@ function Base.done(range::AbstractRange, state=nothing)
     isdone
 end
 
-function Base.next(range::Range, state=nothing)
+function next(range::Range, state=nothing)
     r = iter_key(range.iter)
     k = length(r) == 0 ? nothing : array_to_type(r, endian_conv=true)
     r = iter_value(range.iter)
@@ -228,12 +228,14 @@ function db_key_range(db, key_start, key_end)
     KeyRange(iter, options, ks, ke, false)
 end
 
-function Base.next(range::KeyRange, state=nothing)
+#=
+function next(range::KeyRange, state=nothing)
     r = iter_key(range.iter)
     k = length(r) == 0 ? nothing : array_to_type(r, endian_conv=true)
     iter_next(range.iter)
     (k, nothing)
 end
+=#
 
 """
     db_snap_key_range(db, snap, key_start, key_end)
