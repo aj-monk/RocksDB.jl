@@ -16,7 +16,7 @@ libfile = joinpath(libdir,librocksdb.name*".so")
 
 if Sys.isunix()
     libname = librocksdb.so
-else if Sys.isapple()
+elseif Sys.isapple()
     libname = librocksdb.dylib
 end
 
