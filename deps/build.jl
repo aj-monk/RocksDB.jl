@@ -12,12 +12,13 @@ provides(Sources, URI(url), librocksdb, unpacked_dir="rocksdb-c_checkpoint")
 builddir = BinDeps.builddir(librocksdb)
 srcdir = joinpath(BinDeps.depsdir(librocksdb),"src", "rocksdb-c_checkpoint")
 libdir = BinDeps.libdir(librocksdb)
-libfile = joinpath(libdir,librocksdb.name*".so")
 
 if Sys.isunix()
-    libname = librocksdb.so
+    libfile = joinpath(libdir,librocksdb.name*".so")
+    libname = "librocksdb.so"
 elseif Sys.isapple()
-    libname = librocksdb.dylib
+    libfile = joinpath(libdir,librocksdb.name*".dylib")
+    libname = "librocksdb.dylib"
 end
 
 provides(BuildProcess,
