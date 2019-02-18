@@ -14,6 +14,12 @@ srcdir = joinpath(BinDeps.depsdir(librocksdb),"src", "rocksdb-c_checkpoint")
 libdir = BinDeps.libdir(librocksdb)
 libfile = joinpath(libdir,librocksdb.name*".so")
 
+if Sys.isunix()
+    libname = librocksdb.so
+else if Sys.isapple()
+    libname = librocksdb.dylib
+end
+
 provides(BuildProcess,
     (@build_steps begin
         GetSources(librocksdb)
@@ -22,7 +28,7 @@ provides(BuildProcess,
             ChangeDirectory(srcdir)
             FileRule(libfile, @build_steps begin
                      `make shared_lib`
-                     `cp librocksdb.so  ../..//usr/lib/librocksdb.so`
+                     `cp $(libname)  ../../usr/lib/`
             end)
         end
     end), librocksdb, os = :Unix)
