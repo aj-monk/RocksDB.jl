@@ -13,12 +13,12 @@ builddir = BinDeps.builddir(librocksdb)
 srcdir = joinpath(BinDeps.depsdir(librocksdb),"src", "rocksdb-c_checkpoint")
 libdir = BinDeps.libdir(librocksdb)
 
-if Sys.isunix()
-    libfile = joinpath(libdir,librocksdb.name*".so")
-    libname = "librocksdb.so"
-elseif Sys.isapple()
+if Sys.isapple()
     libfile = joinpath(libdir,librocksdb.name*".dylib")
     libname = "librocksdb.dylib"
+elseif Sys.isunix()
+    libfile = joinpath(libdir,librocksdb.name*".so")
+    libname = "librocksdb.so"
 end
 
 provides(BuildProcess,
