@@ -20,7 +20,7 @@ before_script:
 
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-  - julia --check-bounds=yes -e 'Pkg.clone(pwd()); Pkg.add("BinDeps"); Pkg.build("RocksDB"); Pkg.test("RocksDB"; coverage=true)'
+  - julia --check-bounds=yes -e 'using Pkg; Pkg.clone(pwd()); Pkg.add("BinDeps"); Pkg.build("RocksDB"); Pkg.test("RocksDB"; coverage=true)'
 
 after_success:
 - julia -e 'cd(Pkg.dir("RocksDB")); Pkg.add("RocksDB"); using Coverage; Coveralls.submit(Coveralls.process_folder())'

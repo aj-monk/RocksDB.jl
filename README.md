@@ -1,3 +1,4 @@
+
 # RocksDB.jl
 
 [![Build Status](https://travis-ci.org/aj-monk/RocksDB.jl.svg?branch=master)](https://travis-ci.org/aj-monk/RocksDB.jl)
@@ -26,7 +27,7 @@ the threadcall mechanism that schedules the call into librocksdb
 on a separate thread.
 
 ## Installing
-RocksDB.jl works on Julia v0.7 and v1.0
+RocksDB.jl works with all minor versions of Julia v1.0
 
 ```bash
 $ mkdir myProject; cd myProject; julia

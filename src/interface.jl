@@ -96,15 +96,21 @@ function write_batch(db, batch)
 end
 
 function create_iter(db::Ptr{Nothing}, options::Ptr{Nothing})
-  @threadcall( (:rocksdb_create_iterator, librocksdb), Ptr{Nothing},
-              (Ptr{Nothing}, Ptr{Nothing}),
-              db, options)
+    @threadcall( (:rocksdb_create_iterator, librocksdb), Ptr{Nothing},
+                 (Ptr{Nothing}, Ptr{Nothing}),
+                 db, options)
 end
 
 function iter_valid(it::Ptr{Nothing})
-  @threadcall( (:rocksdb_iter_valid, librocksdb), UInt8,
-    (Ptr{Nothing},),
-    it) == 1
+    @threadcall( (:rocksdb_iter_valid, librocksdb), UInt8,
+                 (Ptr{Nothing},),
+                 it) != 0
+end
+
+function iter_destroy(it::Ptr{Nothing})
+    @threadcall( (:rocksdb_iter_destroy, librocksdb), UInt8,
+                 (Ptr{Nothing},),
+                 it) != 0
 end
 
 function iter_key(it::Ptr{Nothing})
@@ -137,6 +143,18 @@ end
 
 abstract type AbstractRange end
 
+function range_close(range::AbstractRange)
+    if !range.destroyed
+        range.destroyed = true
+        @threadcall( (:rocksdb_iter_destroy, librocksdb), Nothing,
+                     (Ptr{Nothing},),
+                     range.iter)
+        @threadcall( (:rocksdb_readoptions_destroy, librocksdb), Nothing,
+                     (Ptr{Nothing},),
+                     range.options)
+    end
+end
+
 mutable struct Range <: AbstractRange
     iter::Ptr{Nothing}    # RocksDB iterator
     options::Ptr{Nothing} # RocksDB options
@@ -159,21 +177,10 @@ function db_range(db, key_start, key_end; raw=false)
     ks = byte_array(key_start, endian_conv=true)
     ke = byte_array(key_end, endian_conv=true)
     iter = create_iter(db, options)
-    Range(iter, options, ks, ke, raw, false)
+    range = Range(iter, options, ks, ke, raw, false)
+    finalizer(range_close, range)
+    range
 end
-
-function range_close(range::AbstractRange)
-    if !range.destroyed
-        range.destroyed = true
-        @threadcall( (:rocksdb_iter_destroy, librocksdb), Nothing,
-                     (Ptr{Nothing},),
-                     range.iter)
-        @threadcall( (:rocksdb_readoptions_destroy, librocksdb), Nothing,
-                     (Ptr{Nothing},),
-                     range.options)
-    end
-end
-
 
 function Base.iterate(range::AbstractRange)
     iter_seek(range.iter, range.key_start)
@@ -181,6 +188,9 @@ function Base.iterate(range::AbstractRange)
 end
 
 function Base.iterate(range::Range, state)
+    if !iter_valid(range.iter) # No more valid keys
+        return nothing
+    end
     r = iter_key(range.iter)
     k = length(r) == 0 ? nothing : array_to_type(r, endian_conv=true)
     r = iter_value(range.iter)
